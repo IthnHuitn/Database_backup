@@ -136,13 +136,15 @@
 
 1. Резервное копирование всей базы данных в файл:
 
-`bash
-pg_dump -U username -d database_name -f backup.sql`
+```bash
+pg_dump -U username -d database_name -f backup.sql
+```
 
 2. Резервное копирование в сжатый формат с собственным (custom) форматом PostgreSQL:
 
-`bash
-pg_dump -U username -d database_name -F c -f backup.dump`
+```bash
+pg_dump -U username -d database_name -F c -f backup.dump
+```
 
 - -F c — формат вывода "custom" (сжатый, поддерживает параллельное восстановление)
 
@@ -150,11 +152,12 @@ pg_dump -U username -d database_name -F c -f backup.dump`
 
 3. Резервное копирование с детализацией:
 
-`bash
+```bash
 pg_dump -U username -h localhost -p 5432 -d mydatabase \
   --clean --create --verbose --compress=9 \
   --file=mydatabase_backup_$(date +%Y%m%d).dump \
-  --format=c`
+  --format=c
+  ```
 
 - --clean — добавляет команды DROP перед CREATE (удобно для полного пересоздания)
 
@@ -168,46 +171,53 @@ pg_dump -U username -h localhost -p 5432 -d mydatabase \
 
 4. Резервное копирование только схемы (без данных):
 
-`bash
-pg_dump -U username -d database_name --schema-only -f schema.sql`
+```bash
+pg_dump -U username -d database_name --schema-only -f schema.sql
+```
 
 5. Резервное копирование только данных:
 
-`bash
-pg_dump -U username -d database_name --data-only -f data.sql`
+```bash
+pg_dump -U username -d database_name --data-only -f data.sql
+```
 
 - Восстановление с помощью pg_restore
 
 1. Восстановление из custom-формата:
 
-`bash
-pg_restore -U username -d database_name backup.dump`
+```bash
+pg_restore -U username -d database_name backup.dump
+```
 
 2. Восстановление в новую базу данных:
 
-`bash
+```bash
 # Сначала создаем базу данных
 createdb -U username new_database
 
 # Восстанавливаем в нее
-pg_restore -U username -d new_database backup.dump`
+pg_restore -U username -d new_database backup.dump
+```
 
 3. Восстановление только структуры:
 
-`bash
-pg_restore -U username -d database_name --schema-only backup.dump`
+```bash
+pg_restore -U username -d database_name --schema-only backup.dump
+```
 
 4. Восстановление с параллельным выполнением (ускоряет процесс):
 
-`bash
-pg_restore -U username -d database_name -j 4 backup.dump`
+```bash
+pg_restore -U username -d database_name -j 4 backup.dump
+```
 
 - -j 4 — использует 4 параллельных потока
 
 5. Восстановление из обычного SQL-файла:
 
-`bash
-psql -U username -d database_name -f backup.sql`
+```bash
+psql -U username -d database_name -f backup.sql
+```
 
 #### 2.1.* Автоматизация процесса резервного копирования
 - Да, автоматизировать процесс резервного копирования возможно и обязательно для production-среды.
@@ -215,7 +225,7 @@ psql -U username -d database_name -f backup.sql`
 1. Скрипты + планировщик заданий (cron)
 Пример bash-скрипта для автоматического резервного копирования:
 
-`bash
+```bash
 #!/bin/bash
 # backup_postgres.sh
 
@@ -246,18 +256,20 @@ if [ $? -eq 0 ]; then
 else
     echo "Ошибка при резервном копировании!"
     exit 1
-fi`
+fi
+```
 
 - Добавление в cron для ежедневного выполнения в 2:00:
 
-`bash
-0 2 * * * /path/to/backup_postgres.sh >> /var/log/postgres_backup.log 2>&1`
+```bash
+0 2 * * * /path/to/backup_postgres.sh >> /var/log/postgres_backup.log 2>&1
+```
 
 2. Использование pgBackRest или Barman
 
 - pgBackRest — профессиональное решение для резервного копирования PostgreSQL:
 
-`bash
+```bash
 # Установка и настройка pgBackRest
 # Конфигурационный файл /etc/pgbackrest.conf
 [global]
@@ -271,20 +283,23 @@ pg1-path=/var/lib/postgresql/16/main
 pgbackrest --stanza=mycluster backup --type=full
 
 # Автоматизация через cron
-0 1 * * * pgbackrest --stanza=mycluster --type=incr backup`
+0 1 * * * pgbackrest --stanza=mycluster --type=incr backup
+```
 
 - Barman (Backup and Recovery Manager) — еще одно популярное решение:
 
-bash
+```bash
 # Резервное копирование
 barman backup myserver
 
 # Автоматическое управление ретеншеном
 barman cron
-3. Интеграция с облачными хранилищами
-Автоматическая выгрузка бэкапов в облако:
+```
 
-bash
+3. Интеграция с облачными хранилищами
+- Автоматическая выгрузка бэкапов в облако:
+
+```bash
 #!/bin/bash
 # Создаем локальный бэкап
 pg_dump -U postgres -d mydb -F c -f /tmp/backup.dump
@@ -294,17 +309,21 @@ aws s3 cp /tmp/backup.dump s3://my-backup-bucket/postgres/$(date +%Y%m%d).dump
 
 # Очистка временных файлов
 rm /tmp/backup.dump
-4. Использование репликации + WAL-архивирование для Point-in-Time Recovery
-Настройка непрерывного архивирования WAL:
+```
 
-postgresql
+4. Использование репликации + WAL-архивирование для Point-in-Time Recovery
+- Настройка непрерывного архивирования WAL:
+
+```postgresql
 # В postgresql.conf
 wal_level = replica
 archive_mode = on
 archive_command = 'cp %p /var/lib/postgresql/wal_archive/%f'
-Автоматический скрипт для PITR:
+```
 
-bash
+- Автоматический скрипт для PITR:
+
+```bash
 #!/bin/bash
 # Автоматическое создание базовых бэкапов
 BASE_BACKUP_DIR="/backups/base"
@@ -315,6 +334,25 @@ pg_basebackup -D $BASE_BACKUP_DIR/$(date +%Y%m%d) -X fetch
 
 # Архивируем WAL-файлы
 find $WAL_ARCHIVE_DIR -name "*.backup" -mtime +30 -delete
+```
+
+#### Рекомендации по автоматизации:
+
+1. Регулярное тестирование восстановления — минимум раз в квартал проверять, 
+что бэкапы действительно восстанавливаются.
+
+2. Многоуровневое хранение — хранить бэкапы в разных местах 
+(локально, в облаке, в нескольких географических локациях ).
+
+3. Ведение журналов — логировать все операции резервного копирования
+ и восстановления.
+
+4. Мониторинг — настроить алерты при пропуске бэкапов или ошибках.
+
+5. Шифрование — шифровать бэкапы, особенно при хранении в облаке 
+или выносе за пределы защищенного периметра.
+
+#### Автоматизация резервного копирования PostgreSQL — это не просто удобство, а необходимое условие для обеспечения отказоустойчивости и соответствия требованиям бизнеса по доступности данных.
 
 
 ### Задание 3
