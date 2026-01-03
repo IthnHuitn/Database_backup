@@ -130,28 +130,192 @@
 
 ### Задание 2
 
-`Приведите ответ в свободной форме........`
+#### 2.1. Примеры команд резервного копирования и восстановления в PostgreSQL
 
-1. `Заполните здесь этапы выполнения, если требуется ....`
-2. `Заполните здесь этапы выполнения, если требуется ....`
-3. `Заполните здесь этапы выполнения, если требуется ....`
-4. `Заполните здесь этапы выполнения, если требуется ....`
-5. `Заполните здесь этапы выполнения, если требуется ....`
-6. 
+- Резервное копирование с помощью pg_dump
 
-```
-Поле для вставки кода...
-....
-....
-....
-....
-```
+1. Резервное копирование всей базы данных в файл:
 
-`При необходимости прикрепитe сюда скриншоты
-![Название скриншота 2](ссылка на скриншот 2)`
+`bash
+pg_dump -U username -d database_name -f backup.sql`
 
+2. Резервное копирование в сжатый формат с собственным (custom) форматом PostgreSQL:
 
----
+`bash
+pg_dump -U username -d database_name -F c -f backup.dump`
+
+- -F c — формат вывода "custom" (сжатый, поддерживает параллельное восстановление)
+
+- Такой формат может быть восстановлен только через pg_restore
+
+3. Резервное копирование с детализацией:
+
+`bash
+pg_dump -U username -h localhost -p 5432 -d mydatabase \
+  --clean --create --verbose --compress=9 \
+  --file=mydatabase_backup_$(date +%Y%m%d).dump \
+  --format=c`
+
+- --clean — добавляет команды DROP перед CREATE (удобно для полного пересоздания)
+
+- --create — включает команду CREATE DATABASE
+
+- --verbose — подробный вывод процесса
+
+- --compress=9 — уровень сжатия (0-9)
+
+- $(date +%Y%m%d) — добавляет дату к имени файла
+
+4. Резервное копирование только схемы (без данных):
+
+`bash
+pg_dump -U username -d database_name --schema-only -f schema.sql`
+
+5. Резервное копирование только данных:
+
+`bash
+pg_dump -U username -d database_name --data-only -f data.sql`
+
+- Восстановление с помощью pg_restore
+
+1. Восстановление из custom-формата:
+
+`bash
+pg_restore -U username -d database_name backup.dump`
+
+2. Восстановление в новую базу данных:
+
+`bash
+# Сначала создаем базу данных
+createdb -U username new_database
+
+# Восстанавливаем в нее
+pg_restore -U username -d new_database backup.dump`
+
+3. Восстановление только структуры:
+
+`bash
+pg_restore -U username -d database_name --schema-only backup.dump`
+
+4. Восстановление с параллельным выполнением (ускоряет процесс):
+
+`bash
+pg_restore -U username -d database_name -j 4 backup.dump`
+
+- -j 4 — использует 4 параллельных потока
+
+5. Восстановление из обычного SQL-файла:
+
+`bash
+psql -U username -d database_name -f backup.sql`
+
+#### 2.1.* Автоматизация процесса резервного копирования
+- Да, автоматизировать процесс резервного копирования возможно и обязательно для production-среды.
+
+1. Скрипты + планировщик заданий (cron)
+Пример bash-скрипта для автоматического резервного копирования:
+
+`bash
+#!/bin/bash
+# backup_postgres.sh
+
+# Настройки
+BACKUP_DIR="/var/backups/postgres"
+DATE=$(date +%Y%m%d_%H%M%S)
+DB_NAME="my_database"
+USERNAME="postgres"
+RETENTION_DAYS=7
+
+# Создаем директорию для бэкапов, если её нет
+mkdir -p $BACKUP_DIR
+
+# Имя файла бэкапа
+BACKUP_FILE="$BACKUP_DIR/${DB_NAME}_${DATE}.dump"
+
+# Выполняем резервное копирование
+echo "Начало резервного копирования $DB_NAME в $BACKUP_FILE"
+pg_dump -U $USERNAME -d $DB_NAME -F c -f $BACKUP_FILE
+
+# Проверяем успешность выполнения
+if [ $? -eq 0 ]; then
+    echo "Резервное копирование успешно завершено"
+    
+    # Удаляем старые бэкапы (старше RETENTION_DAYS дней)
+    find $BACKUP_DIR -name "${DB_NAME}_*.dump" -mtime +$RETENTION_DAYS -delete
+    echo "Удалены бэкапы старше $RETENTION_DAYS дней"
+else
+    echo "Ошибка при резервном копировании!"
+    exit 1
+fi`
+
+- Добавление в cron для ежедневного выполнения в 2:00:
+
+`bash
+0 2 * * * /path/to/backup_postgres.sh >> /var/log/postgres_backup.log 2>&1`
+
+2. Использование pgBackRest или Barman
+
+- pgBackRest — профессиональное решение для резервного копирования PostgreSQL:
+
+`bash
+# Установка и настройка pgBackRest
+# Конфигурационный файл /etc/pgbackrest.conf
+[global]
+repo1-path=/var/lib/pgbackrest
+repo1-retention-full=2
+
+[mycluster]
+pg1-path=/var/lib/postgresql/16/main
+
+# Создание полного бэкапа
+pgbackrest --stanza=mycluster backup --type=full
+
+# Автоматизация через cron
+0 1 * * * pgbackrest --stanza=mycluster --type=incr backup`
+
+- Barman (Backup and Recovery Manager) — еще одно популярное решение:
+
+bash
+# Резервное копирование
+barman backup myserver
+
+# Автоматическое управление ретеншеном
+barman cron
+3. Интеграция с облачными хранилищами
+Автоматическая выгрузка бэкапов в облако:
+
+bash
+#!/bin/bash
+# Создаем локальный бэкап
+pg_dump -U postgres -d mydb -F c -f /tmp/backup.dump
+
+# Загружаем в облако (пример для AWS S3)
+aws s3 cp /tmp/backup.dump s3://my-backup-bucket/postgres/$(date +%Y%m%d).dump
+
+# Очистка временных файлов
+rm /tmp/backup.dump
+4. Использование репликации + WAL-архивирование для Point-in-Time Recovery
+Настройка непрерывного архивирования WAL:
+
+postgresql
+# В postgresql.conf
+wal_level = replica
+archive_mode = on
+archive_command = 'cp %p /var/lib/postgresql/wal_archive/%f'
+Автоматический скрипт для PITR:
+
+bash
+#!/bin/bash
+# Автоматическое создание базовых бэкапов
+BASE_BACKUP_DIR="/backups/base"
+WAL_ARCHIVE_DIR="/backups/wal"
+
+# Создаем базовый бэкап
+pg_basebackup -D $BASE_BACKUP_DIR/$(date +%Y%m%d) -X fetch
+
+# Архивируем WAL-файлы
+find $WAL_ARCHIVE_DIR -name "*.backup" -mtime +30 -delete
+
 
 ### Задание 3
 
